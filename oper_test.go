@@ -1,103 +1,104 @@
 package main
 
-import "testing"
-
-func memEquals(n int) func(*State) bool {
-	return func(s *State) bool {
-		return s.mem[s.mptr] == n
-	}
-}
-
-func memPtrEquals(n int) func(*State) bool {
-	return func(s *State) bool {
-		return s.mptr == n
-	}
-}
-
-func InstPtrEquals(n int) func(*State) bool {
-	return func(s *State) bool {
-		return s.iptr == n
-	}
-}
-
-func and(fn ... func(*State) bool) func(*State) bool {
-	return func(state *State) bool {
-		for _, f := range fn {
-			if !f(state) {
-				return false
-			}
-		}
-		return true
-	}
-}
+import (
+	"reflect"
+	"testing"
+)
 
 type Test struct {
-	state  *State
-	verify func(*State) bool
+	inst  string
+	begin State
+	end   State
 }
 
-func (ut Test) StepTest(i int, t *testing.T) {
-	ut.state.Step()
-	if !ut.verify(ut.state) {
-		t.Logf("Failed on %s: %d", t.Name(), i)
+func (tc Test) StepTest(t *testing.T) {
+	machine, _ := NewMachine(tc.inst)
+	machine.States = []*State{&tc.begin}
+	machine.Step()
+	if !reflect.DeepEqual(machine.LatestState(), &tc.end) {
+		t.Logf("%s\nstart\t%+v\nend\t%+v\nexp\t%+v", tc.inst, tc.begin, machine.LatestState(), tc.end)
 		t.Fail()
 	}
 }
 
-func stepTestWith(tests []Test, t *testing.T) {
-	for i, test := range tests {
-		test.StepTest(i, t)
+func (tc Test) RunTest(t *testing.T) {
+	machine, _ := NewMachine(tc.inst)
+	machine.Run()
+
+	if !reflect.DeepEqual(machine.LatestState().mem, tc.end.mem) {
+		t.Logf("%s: %+v != %+v", tc.inst, machine.LatestState().mem, tc.end.mem)
+
+		t.Fail()
+	}
+
+}
+
+// Empty: State{[]int{0}, 0, 0}
+var operatorTests = []Test{
+	{
+		"+ add",
+		State{[]int{0}, 0, 0},
+		State{[]int{1}, 0, 1},
+	}, {
+		"- sub",
+		State{[]int{0}, 0, 0},
+		State{[]int{-1}, 0, 1},
+	}, {
+		"> mem ptr right || new cell",
+		State{[]int{1}, 0, 0},
+		State{[]int{1, 0}, 1, 1},
+	}, {
+		"> mem ptr right || existing cell",
+		State{[]int{0, 1}, 0, 0},
+		State{[]int{0, 1}, 1, 1},
+	}, {
+		"< mem ptr left || new cell",
+		State{[]int{1}, 0, 0},
+		State{[]int{0, 1}, 0, 1},
+	}, {
+		"< mem ptr left || existing cell",
+		State{[]int{0, 1}, 1, 0},
+		State{[]int{0, 1}, 0, 1},
+	}, {
+		"[++]+++ loop start || false || bypass",
+		State{[]int{0}, 0, 0},
+		State{[]int{0}, 0, 4},
+	}, {
+		"[++]++ loop start || true || enter",
+		State{[]int{1}, 0, 0},
+		State{[]int{1}, 0, 1},
+	}, {
+		"[++]++ loop end || false || exit",
+		State{[]int{0}, 0, 3},
+		State{[]int{0}, 0, 4},
+	}, {
+		"[++]++ loop end || true || reenter",
+		State{[]int{1}, 0, 3},
+		State{[]int{1}, 0, 1},
+	},
+}
+
+func TestOperators(t *testing.T) {
+	for _, test := range operatorTests {
+		t.Run(test.inst, test.StepTest)
 	}
 }
 
-var operAddTests = []Test{
-	{NewState("+"), memEquals(1)},
-	{NewState("+").WithMem(1), memEquals(2)},
-}
-
-func TestOperAdd(t *testing.T) {
-	stepTestWith(operAddTests, t)
-}
-
-var operSubTests = []Test{
-	{NewState("-"), memEquals(-1)},
-	{NewState("-").WithMem(1), memEquals(0)},
-}
-
-func TestOperSub(t *testing.T) {
-	stepTestWith(operSubTests, t)
-}
-
-var memPtrTests = []Test{
+var runTests = []Test{
 	{
-		NewState(">"),
-		memPtrEquals(1),
+		"+++++ add to 5", State{},
+		State{[]int{5}, 0, 0},
 	}, {
-		NewState("<"),
-		memPtrEquals(0),
+		"-----+++++ -5+5", State{},
+		State{[]int{0}, 0, 0},
 	}, {
-		NewState(">").WithMem(0, 0).WithMemPtr(1),
-		memPtrEquals(2),
+		"+++[>+++++<-] 3 * 5", State{},
+		State{[]int{0, 15}, 0, 0},
 	},
 }
 
-func TestMemPtr(t *testing.T) {
-	stepTestWith(memPtrTests, t)
-}
-
-var loopTests = []Test{
-	{
-		NewState("+[>++<]").WithInstPtr(6).WithMem(1, 2),
-		InstPtrEquals(2),
-	}, {
-		NewState("+[>++<]").WithInstPtr(6).WithMem(0, 2),
-		InstPtrEquals(7),
-	}, {
-		NewState("+[>+[>+++<]+<]").WithInstPtr(10).WithMem(1),
-		InstPtrEquals(5),
-	},
-}
-
-func TestLoop(t *testing.T) {
-	stepTestWith(loopTests, t)
+func TestMachine_Run(t *testing.T) {
+	for _, test := range runTests {
+		t.Run(test.inst, test.RunTest)
+	}
 }

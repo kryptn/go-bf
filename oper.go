@@ -1,49 +1,39 @@
 package main
 
 import (
-	"fmt"
 	"bufio"
-	"os"
+	"log"
 )
 
-const OPER_ADD = '+'
-const OPER_SUB = '-'
-const OPER_IPTR = '>'
-const OPER_DPTR = '<'
-const OPER_OUTP = '.'
-const OPER_INP = ','
-const OPER_BEGIN = '['
-const OPER_END = ']'
+type Operator func([]rune, *State)
 
-type Operator func(*State)
-
-var operMap = map[rune]Operator{
-	OPER_ADD:   modifyCurrent(1),
-	OPER_SUB:   modifyCurrent(-1),
-	OPER_IPTR:  IncMemPtr,
-	OPER_DPTR:  DecMemPtr,
-	OPER_OUTP:  Output,
-	OPER_INP:   Input,
-	OPER_BEGIN: Noop,
-	OPER_END:   LoopEnd,
+func OperatorMap(reader *bufio.Reader, writer *bufio.Writer) map[rune]Operator {
+	return map[rune]Operator{
+		'+': modifyCurrentMemory(1),
+		'-': modifyCurrentMemory(-1),
+		'>': IncMemPtr,
+		'<': DecMemPtr,
+		'.': Output(writer),
+		',': Input(reader),
+		'[': seekForPair(1),
+		']': seekForPair(-1),
+	}
 }
 
-func Noop(s *State) {}
-
-func modifyCurrent(n int) func(*State) {
-	return func(s *State) {
+func modifyCurrentMemory(n int) Operator {
+	return func(_ []rune, s *State) {
 		s.mem[s.mptr] += n
 	}
 }
 
-func IncMemPtr(s *State) {
+func IncMemPtr(_ []rune, s *State) {
 	s.mptr += 1
-	if s.mptr+1 > len(s.mem) {
+	if s.mptr >= len(s.mem) {
 		s.mem = append(s.mem, 0)
 	}
 }
 
-func DecMemPtr(s *State) {
+func DecMemPtr(_ []rune, s *State) {
 	if s.mptr == 0 {
 		s.mem = append([]int{0}, s.mem...)
 	} else {
@@ -51,27 +41,51 @@ func DecMemPtr(s *State) {
 	}
 }
 
-func Output(s *State) {
-	fmt.Print(rune(s.mem[s.mptr]))
-}
-
-func Input(s *State) {
-	reader := bufio.NewReader(os.Stdin)
-	text, _ := reader.ReadString('\n')
-	if len(text) > 0 {
-		s.mem[s.mptr] = int([]rune(text)[0])
+func Output(writer *bufio.Writer) Operator {
+	return func(_ []rune, s *State) {
+		writer.WriteString(string(rune(s.mem[s.mptr])))
 	}
 }
 
-var heightMap = map[rune]int{'[': -1, ']': 1}
+func Input(reader *bufio.Reader) Operator {
+	return func(_ []rune, s *State) {
+		r, _, err := reader.ReadRune()
+		if err != nil {
+			log.Fatalf("hmm")
+		}
+		s.mem[s.mptr] = int(r)
+	}
 
-func LoopEnd(s *State) {
-	if s.mem[s.mptr] != 0 {
-		for height := 0; s.inst[s.iptr] != '[' || height != 1; {
-			if adj, ok := heightMap[s.inst[s.iptr]]; ok {
-				height += adj
+}
+
+var goBackMap = map[rune]int{'[': -1, ']': 1}
+var goForwardMap = map[rune]int{'[': 1, ']': -1}
+
+func seekForPair(dir int) Operator {
+	var adjMap map[rune]int
+	var other rune
+	if dir == -1 {
+		adjMap, other = goBackMap, '['
+	} else {
+		adjMap, other = goForwardMap, ']'
+	}
+	return func(inst []rune, s *State) {
+		memory := s.mem[s.mptr]
+		if memory != 0 && dir == 1 {
+			// when [ and not zero, noop
+			return
+		}
+
+		if memory == 0 && dir == -1 {
+			// when ] and zero, noop
+			return
+		}
+
+		for level := 0; inst[s.iptr] != other || level != 1; {
+			if adj, ok := adjMap[inst[s.iptr]]; ok {
+				level += adj
 			}
-			s.iptr -= 1
+			s.iptr += dir
 		}
 	}
 }
