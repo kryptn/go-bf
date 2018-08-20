@@ -14,6 +14,10 @@ type Machine struct {
 	operators map[rune]Operator
 }
 
+func (m *Machine) LatestState() *State {
+	return m.States[len(m.States)-1]
+}
+
 func (m *Machine) LatestOperator() Operator {
 	latest := m.LatestState()
 	return m.operators[m.inst[latest.iptr]]
@@ -23,10 +27,6 @@ func (m *Machine) Step() {
 	current := m.LatestState()
 	operator := m.LatestOperator()
 	m.States = append(m.States, current.Apply(m.inst, operator))
-}
-
-func (m *Machine) LatestState() *State {
-	return m.States[len(m.States)-1]
 }
 
 func (m *Machine) Run() {
@@ -40,7 +40,7 @@ func (m *Machine) Run() {
 func NewMachine(instructions string) (*Machine, error) {
 	cleaned := CleanInput(instructions)
 	if !Validate(cleaned) {
-		return nil, errors.New("Invalid loop state detected")
+		return nil, errors.New("invalid loop structure detected")
 	}
 
 	return &Machine{

@@ -70,14 +70,9 @@ func seekForPair(dir int) Operator {
 		adjMap, other = goForwardMap, ']'
 	}
 	return func(inst []rune, s *State) {
-		memory := s.mem[s.mptr]
-		if memory != 0 && dir == 1 {
-			// when [ and not zero, noop
-			return
-		}
-
-		if memory == 0 && dir == -1 {
-			// when ] and zero, noop
+		zero := s.mem[s.mptr] == 0
+		if (!zero && dir == 1) || (zero && dir == -1) {
+			// if [ and truthy, or ] and falsey then bypass
 			return
 		}
 
