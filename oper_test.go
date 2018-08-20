@@ -60,20 +60,20 @@ var operatorTests = []Test{
 		State{[]int{0, 1}, 1, 0},
 		State{[]int{0, 1}, 0, 1},
 	}, {
-		"[++]+++ loop start || false || bypass",
+		"[] loop start || false || bypass",
 		State{[]int{0}, 0, 0},
-		State{[]int{0}, 0, 4},
+		State{[]int{0}, 0, 2},
 	}, {
-		"[++]++ loop start || true || enter",
+		"[] loop start || true || enter",
 		State{[]int{1}, 0, 0},
 		State{[]int{1}, 0, 1},
 	}, {
-		"[++]++ loop end || false || exit",
-		State{[]int{0}, 0, 3},
-		State{[]int{0}, 0, 4},
+		"[] loop end || false || exit",
+		State{[]int{0}, 0, 1},
+		State{[]int{0}, 0, 2},
 	}, {
-		"[++]++ loop end || true || reenter",
-		State{[]int{1}, 0, 3},
+		"[] loop end || true || reenter",
+		State{[]int{1}, 0, 1},
 		State{[]int{1}, 0, 1},
 	},
 }
